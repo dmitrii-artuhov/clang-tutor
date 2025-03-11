@@ -1,0 +1,6 @@
+{
+    "cmake.sourceDirectory": "${workspaceFolder}",
+    "cmake.configureSettings": {
+        "CT_Clang_INSTALL_DIR": "/usr/lib/llvm-19"
+    }
+}
