@@ -2,15 +2,15 @@
 
 namespace custom {
 
-template<class T>
+template<class U>
 struct OtherAtomic {
-    T value = 0;
+    U value = 0;
 
-    T get() {
+    U get() {
         return value;
     }
 
-    T incrementAndGet() {
+    U incrementAndGet() {
         return ++value;
     }
 };

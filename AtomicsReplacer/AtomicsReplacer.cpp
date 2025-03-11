@@ -178,10 +178,12 @@ class CodeRefactorMatcher
     : public clang::ast_matchers::MatchFinder::MatchCallback {
 public:
   explicit CodeRefactorMatcher(
+    ASTContext& Context,
     clang::Rewriter &RewriterForCodeRefactor,
     std::string ClassNameToReplace,
     std::string ClassNameToInsert)
-      : CodeRefactorRewriter(RewriterForCodeRefactor),
+      : Context(Context),
+        CodeRefactorRewriter(RewriterForCodeRefactor),
         ClassNameToReplace(ClassNameToReplace),
         ClassNameToInsert(ClassNameToInsert) {}
   
@@ -194,21 +196,45 @@ public:
 
   void run(const clang::ast_matchers::MatchFinder::MatchResult &Result) override {
     // Handle variable declarations of OtherAtomic type
-    if (const auto *varDecl = Result.Nodes.getNodeAs<clang::VarDecl>("AtomicVarDecl")) {      
-      // Get the class name and its length from the record declaration
-      // const auto *RecordDecl = Result.Nodes.getNodeAs<clang::RecordDecl>("AtomicClass");
-      // if (!RecordDecl)
-      //   return;
+    // if (const auto *varDecl = Result.Nodes.getNodeAs<clang::VarDecl>("AtomicVarDecl")) {      
+    //   // Get the class name and its length from the record declaration
+    //   // const auto *RecordDecl = Result.Nodes.getNodeAs<clang::RecordDecl>("AtomicClass");
+    //   // if (!RecordDecl)
+    //   //   return;
 
-      clang::TypeLoc TypeLoc = varDecl->getTypeSourceInfo()->getTypeLoc();
-      std::string TypeSourceString = getSourceRangeAsString(TypeLoc.getSourceRange());
+    //   clang::TypeLoc TypeLoc = varDecl->getTypeSourceInfo()->getTypeLoc();
+    //   std::string TypeSourceString = getSourceRangeAsString(TypeLoc.getSourceRange());
 
-      llvm::outs() << "Actual type as string matched: '"
-                   << TypeSourceString << "' "
-                   << varDecl->getType().getAsString() << " "
-                   << "replace: " << ClassNameToReplace << "\n";
+    //   llvm::outs() << "Actual type as string matched: '"
+    //                << TypeSourceString << "' "
+    //                << varDecl->getType().getAsString() << " "
+    //                << "replace: " << ClassNameToReplace << "\n";
 
-      CodeRefactorRewriter.ReplaceText(TypeLoc.getBeginLoc(), TypeSourceString.length(), ClassNameToInsert);
+    //   CodeRefactorRewriter.ReplaceText(TypeLoc.getBeginLoc(), TypeSourceString.length(), ClassNameToInsert);
+    // }
+
+    llvm::outs() << "Matched something\n";
+
+    if (const auto *templateTypeLoc = Result.Nodes.getNodeAs<TypeLoc>("TemplateTypeLoc")) {
+      const auto* templType = templateTypeLoc->getType()->getAs<TemplateSpecializationType>();  //->getAs<TemplateSpecializationTypeLoc>();
+      if (!templType)
+        return;
+
+      std::string templateArgs;
+      llvm::raw_string_ostream os(templateArgs);
+      ArrayRef<TemplateArgument> args = templType->template_arguments();
+      os << "<";
+      for (unsigned i = 0, n = args.size(); i < n; ++i) {
+        if (i > 0) os << ", ";
+        TemplateArgument arg = args[i];
+        arg.print(Context.getPrintingPolicy(), os, true);
+      }
+      os << ">";
+
+      llvm::outs() << "Template: '" << getSourceRangeAsString(templateTypeLoc->getSourceRange()) << "'\n";
+      llvm::outs() << "Template args: " << templateArgs << "\n";
+      
+      CodeRefactorRewriter.ReplaceText(templateTypeLoc->getSourceRange(), ClassNameToInsert + templateArgs);
     }
 
     // const MemberExpr *MemberAccess =
@@ -230,6 +256,7 @@ public:
   }
 
 private:
+  ASTContext& Context;
   clang::Rewriter CodeRefactorRewriter;
   std::string ClassNameToReplace;
   std::string ClassNameToInsert;
@@ -268,20 +295,47 @@ private:
 class CodeRefactorASTConsumer : public clang::ASTConsumer {
 public:
   CodeRefactorASTConsumer(
+    ASTContext& Context,
     clang::Rewriter &R,
     std::string ClassNameToReplace,
     std::string ClassNameToInsert
-  ): CodeRefactorHandler(R, ClassNameToReplace, ClassNameToInsert),
+  ): CodeRefactorHandler(Context, R, ClassNameToReplace, ClassNameToInsert),
      ClassNameToReplace(ClassNameToReplace),
      ClassNameToInsert(ClassNameToInsert) {
-    const auto MatcherForAtomicVarDecl = varDecl(
-      hasType(
-        recordDecl(hasName(ClassNameToReplace)) // .bind("AtomicClass")
-      ),
-      unless(hasType(autoType()))
-    ).bind("AtomicVarDecl");
+    // const auto MatcherForAtomicVarDecl = varDecl(
+    //   hasType(
+    //     recordDecl(hasName(ClassNameToReplace)) // .bind("AtomicClass")
+    //   ),
+    //   unless(hasType(autoType()))
+    // ).bind("AtomicVarDecl");
 
-    Finder.addMatcher(MatcherForAtomicVarDecl, &CodeRefactorHandler);
+    // Finder.addMatcher(MatcherForAtomicVarDecl, &CodeRefactorHandler);
+
+    const auto MatcherForTemplateTypes = typeLoc(
+      loc(
+        templateSpecializationType(
+          hasDeclaration(
+            classTemplateSpecializationDecl(
+              hasName(ClassNameToReplace)
+            )
+          )
+        )
+      )
+  ).bind("TemplateTypeLoc");
+    // typeLoc(
+    //   loc(
+    //     templateSpecializationType(
+    //       hasDeclaration(
+    //         classTemplateDecl(
+    //           has(recordDecl(hasName(ClassNameToReplace)))
+    //         )
+    //       )
+    //     )
+    //   )
+    // ).bind("TemplateTypeLoc");
+
+    // Add matcher to the finder
+    Finder.addMatcher(MatcherForTemplateTypes, &CodeRefactorHandler);
     
     // Match class type references in declarations
     // const auto MatcherForTypeReferences = typeLoc(
@@ -329,7 +383,7 @@ public:
     RewriterForCodeRefactor.setSourceMgr(CI.getSourceManager(),
                                           CI.getLangOpts());
     return std::make_unique<CodeRefactorASTConsumer>(
-        RewriterForCodeRefactor, ClassNameToReplace, ClassNameToInsert);
+        CI.getASTContext(), RewriterForCodeRefactor, ClassNameToReplace, ClassNameToInsert);
   }
 
 private:

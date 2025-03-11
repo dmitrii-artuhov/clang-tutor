@@ -6,16 +6,16 @@
 
 using namespace custom;
 
-template<class T>
+template<class U>
 struct MyAtomic {
-    OtherAtomic<T> a;
+    OtherAtomic<U> a;
 
-    T get() {
+    U get() {
         std::cout << "MyAtomic get()" << std::endl;
         return a.get();
     }
 
-    T incrementAndGet() {
+    U incrementAndGet() {
         std::cout << "MyAtomic incrementAndGet()" << std::endl;
         return a.incrementAndGet();
     }

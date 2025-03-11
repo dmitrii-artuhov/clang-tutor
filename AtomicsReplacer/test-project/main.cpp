@@ -12,7 +12,7 @@ int main() {
 using namespace custom;
 
 void fun(const OtherAtomic<int>& other) {
-    OtherAtomic  <int> a3{};
-    OtherAtomic<int> a4 = OtherAtomic<int>{};
-    OtherAtomic<int> a5 = OtherAtomic<int>();
+    OtherAtomic  <long> a3{};
+    // OtherAtomic<int> a4 = OtherAtomic<int>{};
+    // OtherAtomic<int> a5 = OtherAtomic<int>();
 }
