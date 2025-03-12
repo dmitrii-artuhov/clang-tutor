@@ -190,7 +190,7 @@ public:
 
 private:
   Rewriter RewriterForCodeRefactor;
-  std::string ClassNameToReplace = "::custom::OtherAtomic";
+  std::string ClassNameToReplace = "::std::atomic";
   std::string ClassNameToInsert = "MyAtomic";
 };
 

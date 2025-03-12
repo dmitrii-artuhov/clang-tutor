@@ -1,27 +1,29 @@
-// #include <iostream>
+#include <iostream>
+#include <atomic>
 
-#include "other_atomic.h"
 #include "my_atomic.h"
 
 struct DataStructure {
-    custom::OtherAtomic<int> other;
+    std::atomic<int> other;
 
     int getVal() {
-        return other.get();
+        return other.load();
     }
 };
 
 int main() {
-    auto a1 = custom::OtherAtomic<char>{};
-    custom::OtherAtomic<char> a2;
-    std::cout << "Atomic incremented: " << a1.incrementAndGet() << std::endl;
+    auto a1 = std::atomic<char>{};
+    std::atomic<char> a2;
+    auto prev = a1.load();
+    a1.store(prev + 1);
+    std::cout << "Atomic fetch_add: " << a1.fetch_add(1) << std::endl;
 }
 
-using namespace custom;
+using namespace std;
 
-void fun(const custom::OtherAtomic<float>& other) {
-    OtherAtomic  <long> a3{};
-    OtherAtomic<int> a4 = OtherAtomic<int>{};
-    OtherAtomic<int> a5 = OtherAtomic<int>();
-    OtherAtomic<long>* ptr;
+void fun(const std::atomic<float*>& other) {
+    atomic  <long> a3{};
+    atomic<int> a4 = atomic<int>{};
+    atomic<int> a5 = atomic<int>();
+    atomic<long>* ptr;
 }

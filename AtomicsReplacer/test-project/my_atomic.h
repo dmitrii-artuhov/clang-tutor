@@ -1,22 +1,24 @@
 #pragma once
 
 #include <iostream>
+#include <atomic>
 
-#include "other_atomic.h"
-
-using namespace custom;
-
-template<class U>
+template<class T>
 struct MyAtomic {
-    OtherAtomic<U> a;
+    std::atomic<T> a;
 
-    U get() {
-        std::cout << "MyAtomic get()" << std::endl;
-        return a.get();
+    T load(std::memory_order order = std::memory_order_seq_cst) const {
+        std::cout << "MyAtomic load()" << std::endl;
+        return a.load(order);
     }
 
-    U incrementAndGet() {
-        std::cout << "MyAtomic incrementAndGet()" << std::endl;
-        return a.incrementAndGet();
+    void store(T desired, std::memory_order order = std::memory_order_seq_cst) noexcept {
+        std::cout << "MyAtomic store()" << std::endl;
+        a.store(desired, order);
+    }
+
+    T fetch_add(T arg, std::memory_order order = std::memory_order_seq_cst) noexcept {
+        std::cout << "MyAtomic fetch_add()" << std::endl;
+        return a.fetch_add(arg, order);
     }
 };
