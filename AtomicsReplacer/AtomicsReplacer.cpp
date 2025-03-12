@@ -235,8 +235,8 @@ public:
       //   }
       // }
 
-      const auto* templType = templateTypeLoc->getType()->getAs<TemplateSpecializationType>();
-      if (!templType) {
+      const auto* TemplType = templateTypeLoc->getType()->getAs<TemplateSpecializationType>();
+      if (!TemplType) {
         return;
       }
       
@@ -249,30 +249,40 @@ public:
       //     llvm::outs() << "Fully Qualified Name: " << FullyQualifiedName << "\n";
       // }
 
-      std::string templateArgs;
-      llvm::raw_string_ostream os(templateArgs);
-      printTemplateArgumentList(os, templType->template_arguments(), Context.getPrintingPolicy());
-
       llvm::outs() << "Template: '" << getSourceRangeAsString(templateTypeLoc->getSourceRange()) << "'\n";
-      llvm::outs() << "Template args: " << templateArgs << "\n";
+      llvm::outs() << "Template args: " << GetTemplateArguments(TemplType) << "\n";
       
       //CodeRefactorRewriter.ReplaceText(templateTypeLoc->getSourceRange(), ClassNameToInsert + templateArgs);
     }
 
     if (const auto* fqTemplateTypeLoc = Result.Nodes.getNodeAs<ElaboratedTypeLoc>("TemplateFQTypeLoc")) {      
-      const auto* templType = fqTemplateTypeLoc->getType()->getAs<TemplateSpecializationType>();
-      if (!templType) {
+      const auto* TemplType = fqTemplateTypeLoc->getType()->getAs<TemplateSpecializationType>();
+      if (!TemplType) {
         return;
       }
 
-      std::string templateArgs;
-      llvm::raw_string_ostream os(templateArgs);
-      printTemplateArgumentList(os, templType->template_arguments(), Context.getPrintingPolicy());
+      std::string TemplateArgs = GetTemplateArguments(TemplType);
 
       llvm::outs() << "FQ Template: '" << getSourceRangeAsString(fqTemplateTypeLoc->getSourceRange()) << "'\n";
-      llvm::outs() << "FQ Template args: " << templateArgs << "\n";
+      llvm::outs() << "FQ Template args: " << TemplateArgs << "\n";
+      
+      CodeRefactorRewriter.ReplaceText(fqTemplateTypeLoc->getSourceRange(), ClassNameToInsert + TemplateArgs);
+    }
 
-      CodeRefactorRewriter.ReplaceText(fqTemplateTypeLoc->getSourceRange(), ClassNameToInsert + templateArgs);
+    if (const auto* fqTemplateTypeParamLoc = Result.Nodes.getNodeAs<QualifiedTypeLoc>("TemplateFQTypeParamLoc")) {
+      const auto* TemplType = fqTemplateTypeParamLoc->getType()->getAs<TemplateSpecializationType>();
+      if (!TemplType) {
+        llvm::outs() << "Param Template: CANNOT CAST!\n";
+        return;
+      }
+
+
+      std::string TemplateArgs = GetTemplateArguments(TemplType);
+
+      llvm::outs() << "Param Template: '" << getSourceRangeAsString(fqTemplateTypeParamLoc->getSourceRange()) << "'\n";
+      llvm::outs() << "Param Template args: " << TemplateArgs << "\n";
+
+      CodeRefactorRewriter.ReplaceText(fqTemplateTypeParamLoc->getSourceRange(), ClassNameToInsert + TemplateArgs);
     }
 
     // const MemberExpr *MemberAccess =
@@ -291,6 +301,13 @@ public:
     //   CodeRefactorRewriter.ReplaceText(
     //       CharSourceRange::getTokenRange(MemberDeclSrcRange), NewName);
     // }
+  }
+
+  std::string GetTemplateArguments(const TemplateSpecializationType *TST) {
+    std::string args;
+    llvm::raw_string_ostream os(args);
+    printTemplateArgumentList(os, TST->template_arguments(), Context.getPrintingPolicy());
+    return args;
   }
 
   std::string GetFullyQualifiedName(const Decl *D) {
@@ -377,24 +394,32 @@ public:
           )
         )
       )
-    ).bind("TemplateTypeLoc");
+    );
 
+    // Does not support matching the parameters of the functions
     const auto MatcherForFQTemplateTypes = elaboratedTypeLoc(
       hasNamedTypeLoc(
         loc(
           templateSpecializationType(
             hasDeclaration(
               classTemplateSpecializationDecl(
-                hasName("custom::OtherAtomic")
+                hasName(ClassNameToReplace)
               )
             )
           )
         )
       )
-    ).bind("TemplateFQTypeLoc");
+    );
 
-    Finder.addMatcher(MatcherForTemplateTypes, &CodeRefactorHandler);
-    Finder.addMatcher(MatcherForFQTemplateTypes, &CodeRefactorHandler);
+    const auto MatcherForFQTemplateParams = qualifiedTypeLoc(
+      hasUnqualifiedLoc(
+        MatcherForFQTemplateTypes
+      )
+    );
+
+    Finder.addMatcher(MatcherForTemplateTypes.bind("TemplateTypeLoc"), &CodeRefactorHandler);
+    Finder.addMatcher(MatcherForFQTemplateTypes.bind("TemplateFQTypeLoc"), &CodeRefactorHandler);
+    Finder.addMatcher(MatcherForFQTemplateParams.bind("TemplateFQTypeParamLoc"), &CodeRefactorHandler);
     
     // Match class type references in declarations
     // const auto MatcherForTypeReferences = typeLoc(
