@@ -7,8 +7,7 @@
 //    the same API.
 //
 // USAGE:
-//   clang++ -Xclang -load -Xclang ./build/lib/libAtomicsReplacer.so
-//           -Xclang -add-plugin -Xclang atomics-replacer  file.cpp -o out
+// clang++ -Xclang -load -Xclang ./build/lib/libAtomicsReplacer.so -Xclang -add-plugin -Xclang atomics-replacer ./AtomicsReplacer/test-project/main.cpp 
 //
 // License: The Unlicense
 //==============================================================================
@@ -213,28 +212,55 @@ public:
     //   CodeRefactorRewriter.ReplaceText(TypeLoc.getBeginLoc(), TypeSourceString.length(), ClassNameToInsert);
     // }
 
+    
     llvm::outs() << "Matched something\n";
-
     if (const auto *templateTypeLoc = Result.Nodes.getNodeAs<TypeLoc>("TemplateTypeLoc")) {
-      const auto* templType = templateTypeLoc->getType()->getAs<TemplateSpecializationType>();  //->getAs<TemplateSpecializationTypeLoc>();
-      if (!templType)
+      // QualifiedTypeLoc actualTypeLoc = templateTypeLoc->getAs<QualifiedTypeLoc>();
+      // if (actualTypeLoc) {
+      //   llvm::outs() << "Qualified template loc!" << getSourceRangeAsString(actualTypeLoc.getSourceRange()) << "\n";
+      // }
+
+      switch (templateTypeLoc->getTypeLocClass()) {
+        case clang::TypeLoc::Qualified: {
+          QualifiedTypeLoc actualTypeLoc = templateTypeLoc->getAs<QualifiedTypeLoc>();
+          llvm::outs() << "Qualified template loc!" << getSourceRangeAsString(actualTypeLoc.getSourceRange()) << "\n";
+          break;
+        }
+        case clang::TypeLoc::TemplateSpecialization: {
+          llvm::outs() << "TemplateSpecialization\n";
+          break;
+        }
+        default: {
+          llvm::outs() << "None of two\n";
+        }
+      }
+
+      const auto* templType = templateTypeLoc->getType()->getAs<TemplateSpecializationType>();
+      if (!templType) {
         return;
+      }
+      
+      // if (const ClassTemplateSpecializationDecl *CTSD =
+      //     dyn_cast_or_null<ClassTemplateSpecializationDecl>(templType->getAsCXXRecordDecl())) {
+      //     // Get the fully qualified name, including namespaces
+      //     std::string FullyQualifiedName = GetFullyQualifiedName(CTSD);
+
+      //     // Print the fully qualified name
+      //     llvm::outs() << "Fully Qualified Name: " << FullyQualifiedName << "\n";
+      // }
 
       std::string templateArgs;
       llvm::raw_string_ostream os(templateArgs);
-      ArrayRef<TemplateArgument> args = templType->template_arguments();
-      os << "<";
-      for (unsigned i = 0, n = args.size(); i < n; ++i) {
-        if (i > 0) os << ", ";
-        TemplateArgument arg = args[i];
-        arg.print(Context.getPrintingPolicy(), os, true);
-      }
-      os << ">";
+      printTemplateArgumentList(os, templType->template_arguments(), Context.getPrintingPolicy());
 
       llvm::outs() << "Template: '" << getSourceRangeAsString(templateTypeLoc->getSourceRange()) << "'\n";
       llvm::outs() << "Template args: " << templateArgs << "\n";
       
       CodeRefactorRewriter.ReplaceText(templateTypeLoc->getSourceRange(), ClassNameToInsert + templateArgs);
+    }
+
+    if (const auto* fqTemplateType = Result.Nodes.getNodeAs<ElaboratedType>("TemplateFQType")) {
+      llvm::outs() << "Matched the Fully Qualified types\n";
     }
 
     // const MemberExpr *MemberAccess =
@@ -253,6 +279,16 @@ public:
     //   CodeRefactorRewriter.ReplaceText(
     //       CharSourceRange::getTokenRange(MemberDeclSrcRange), NewName);
     // }
+  }
+
+  std::string GetFullyQualifiedName(const Decl *D) {
+    PrintingPolicy Policy(Context.getLangOpts());
+    Policy.SuppressScope = false; // Ensure namespace qualifiers are included
+
+    std::string QualName;
+    llvm::raw_string_ostream OS(QualName);
+    D->print(OS, Policy);
+    return QualName;
   }
 
 private:
@@ -310,6 +346,14 @@ public:
     // ).bind("AtomicVarDecl");
 
     // Finder.addMatcher(MatcherForAtomicVarDecl, &CodeRefactorHandler);
+    
+    // specifiesNamespace
+
+    /*
+    
+    match elaboratedTypeLoc(loc(templateSpecializationType(hasDeclaration(classTemplateSpecializationDecl(hasName("OtherAtomic"))))))
+    
+    */
 
     const auto MatcherForTemplateTypes = typeLoc(
       loc(
@@ -321,21 +365,20 @@ public:
           )
         )
       )
-  ).bind("TemplateTypeLoc");
-    // typeLoc(
-    //   loc(
-    //     templateSpecializationType(
-    //       hasDeclaration(
-    //         classTemplateDecl(
-    //           has(recordDecl(hasName(ClassNameToReplace)))
-    //         )
-    //       )
-    //     )
-    //   )
-    // ).bind("TemplateTypeLoc");
+    ).bind("TemplateTypeLoc");
 
-    // Add matcher to the finder
+    const auto MatcherForFQTemplateTypes = elaboratedType(
+      namesType(
+        templateSpecializationType(
+          hasDeclaration(
+            classTemplateSpecializationDecl(hasName("OtherAtomic"))
+          )
+        )
+      )
+    ).bind("TemplateFQType");
+
     Finder.addMatcher(MatcherForTemplateTypes, &CodeRefactorHandler);
+    Finder.addMatcher(MatcherForFQTemplateTypes, &CodeRefactorHandler);
     
     // Match class type references in declarations
     // const auto MatcherForTypeReferences = typeLoc(
@@ -388,7 +431,7 @@ public:
 
 private:
   Rewriter RewriterForCodeRefactor;
-  std::string ClassNameToReplace = "OtherAtomic";
+  std::string ClassNameToReplace = "::custom::OtherAtomic";
   std::string ClassNameToInsert = "MyAtomic";
 };
 
