@@ -220,20 +220,20 @@ public:
       //   llvm::outs() << "Qualified template loc!" << getSourceRangeAsString(actualTypeLoc.getSourceRange()) << "\n";
       // }
 
-      switch (templateTypeLoc->getTypeLocClass()) {
-        case clang::TypeLoc::Qualified: {
-          QualifiedTypeLoc actualTypeLoc = templateTypeLoc->getAs<QualifiedTypeLoc>();
-          llvm::outs() << "Qualified template loc!" << getSourceRangeAsString(actualTypeLoc.getSourceRange()) << "\n";
-          break;
-        }
-        case clang::TypeLoc::TemplateSpecialization: {
-          llvm::outs() << "TemplateSpecialization\n";
-          break;
-        }
-        default: {
-          llvm::outs() << "None of two\n";
-        }
-      }
+      // switch (templateTypeLoc->getTypeLocClass()) {
+      //   case clang::TypeLoc::Qualified: {
+      //     QualifiedTypeLoc actualTypeLoc = templateTypeLoc->getAs<QualifiedTypeLoc>();
+      //     llvm::outs() << "Qualified template loc!" << getSourceRangeAsString(actualTypeLoc.getSourceRange()) << "\n";
+      //     break;
+      //   }
+      //   case clang::TypeLoc::TemplateSpecialization: {
+      //     llvm::outs() << "TemplateSpecialization\n";
+      //     break;
+      //   }
+      //   default: {
+      //     llvm::outs() << "None of two\n";
+      //   }
+      // }
 
       const auto* templType = templateTypeLoc->getType()->getAs<TemplateSpecializationType>();
       if (!templType) {
@@ -256,11 +256,23 @@ public:
       llvm::outs() << "Template: '" << getSourceRangeAsString(templateTypeLoc->getSourceRange()) << "'\n";
       llvm::outs() << "Template args: " << templateArgs << "\n";
       
-      CodeRefactorRewriter.ReplaceText(templateTypeLoc->getSourceRange(), ClassNameToInsert + templateArgs);
+      //CodeRefactorRewriter.ReplaceText(templateTypeLoc->getSourceRange(), ClassNameToInsert + templateArgs);
     }
 
-    if (const auto* fqTemplateType = Result.Nodes.getNodeAs<ElaboratedType>("TemplateFQType")) {
-      llvm::outs() << "Matched the Fully Qualified types\n";
+    if (const auto* fqTemplateTypeLoc = Result.Nodes.getNodeAs<ElaboratedTypeLoc>("TemplateFQTypeLoc")) {      
+      const auto* templType = fqTemplateTypeLoc->getType()->getAs<TemplateSpecializationType>();
+      if (!templType) {
+        return;
+      }
+
+      std::string templateArgs;
+      llvm::raw_string_ostream os(templateArgs);
+      printTemplateArgumentList(os, templType->template_arguments(), Context.getPrintingPolicy());
+
+      llvm::outs() << "FQ Template: '" << getSourceRangeAsString(fqTemplateTypeLoc->getSourceRange()) << "'\n";
+      llvm::outs() << "FQ Template args: " << templateArgs << "\n";
+
+      CodeRefactorRewriter.ReplaceText(fqTemplateTypeLoc->getSourceRange(), ClassNameToInsert + templateArgs);
     }
 
     // const MemberExpr *MemberAccess =
@@ -367,15 +379,7 @@ public:
       )
     ).bind("TemplateTypeLoc");
 
-    const auto MatcherForFQTemplateTypes = elaboratedType(
-      namesType(
-        templateSpecializationType(
-          hasDeclaration(
-            classTemplateSpecializationDecl(hasName("OtherAtomic"))
-          )
-        )
-      )
-    ).bind("TemplateFQType");
+    const auto MatcherForFQTemplateTypes = elaboratedTypeLoc(hasNamedTypeLoc(loc( templateSpecializationType(  hasDeclaration(classTemplateSpecializationDecl(hasName("custom::OtherAtomic")))   ) ))).bind("TemplateFQTypeLoc");
 
     Finder.addMatcher(MatcherForTemplateTypes, &CodeRefactorHandler);
     Finder.addMatcher(MatcherForFQTemplateTypes, &CodeRefactorHandler);
