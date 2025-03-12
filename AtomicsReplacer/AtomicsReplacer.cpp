@@ -3,7 +3,7 @@
 //    AtomicsReplacer.cpp
 //
 // DESCRIPTION:
-//    Substitutes all input files std::atomic<T> usages with myAtomic<T> with
+//    Substitutes all input files std::atomic<T> usages with MyAtomic<T> with
 //    the same API.
 //
 // USAGE:
@@ -32,144 +32,6 @@ using namespace clang;
 using namespace ast_matchers;
 using namespace llvm;
 
-// //-----------------------------------------------------------------------------
-// // RecursiveASTVisitor
-// //-----------------------------------------------------------------------------
-// class AtomicsReplacerVisitor : public RecursiveASTVisitor<AtomicsReplacerVisitor> {
-// public:
-//   // explicit AtomicsReplacerVisitor(ASTContext *Context) : Context(Context) {}
-//   explicit AtomicsReplacerVisitor(Rewriter& R) : MyRewriterRef(R) {}
-
-//   // bool VisitCXXRecordDecl(CXXRecordDecl *Decl) {
-//   //   FullSourceLoc FullLocation = Context->getFullLoc(Decl->getBeginLoc());
-
-//   //   // Basic sanity checking
-//   //   if (!FullLocation.isValid())
-//   //     return true;
-
-//   //   // There are 2 types of source locations: in a file or a macro expansion. The
-//   //   // latter contains the spelling location and the expansion location (both are
-//   //   // file locations), but only the latter is needed here (i.e. where the macro
-//   //   // is expanded). File locations are just that - file locations.
-//   //   if (FullLocation.isMacroID())
-//   //     FullLocation = FullLocation.getExpansionLoc();
-
-//   //   SourceManager &SrcMgr = Context->getSourceManager();
-//   //   OptionalFileEntryRef Entry = SrcMgr.getFileEntryRefForID(SrcMgr.getFileID(FullLocation));
-    
-//   //   llvm::outs() << "(atomic-replacer)  entry: " << Entry->getName()
-//   //               << "\n";
-
-//   //   return true;
-//   // }
-
-//   bool VisitCallExpr(CallExpr *CE) {
-//     FunctionDecl *Callee = CE->getDirectCallee();
-//     if (Callee && Callee->getNameAsString() == "foo") {
-//       // Replace the function name in the call expression
-//       llvm::outs() << "Found foo() call, must replace\n";
-//       SourceLocation Start = CE->getBeginLoc();
-//       SourceLocation End = Start.getLocWithOffset(strlen("foo") - 1);
-//       MyRewriterRef.ReplaceText(SourceRange(Start, End), "bar");
-//     }
-//     return true;
-//   }
-
-// private:
-//   // ASTContext *Context;
-//   Rewriter& MyRewriterRef;
-// };
-
-// //-----------------------------------------------------------------------------
-// // ASTConsumer
-// //-----------------------------------------------------------------------------
-// class AtomicsReplacerASTConsumer : public ASTConsumer {
-// public:
-//   // explicit AtomicsReplacerASTConsumer(ASTContext *Ctx) : Visitor(Ctx) {}
-//   explicit AtomicsReplacerASTConsumer(Rewriter &R) : Visitor(R) {}
-
-//   void HandleTranslationUnit(ASTContext &Ctx) override {
-//     Visitor.TraverseDecl(Ctx.getTranslationUnitDecl());
-//     llvm::outs() << "(atomic-replacer)  hello from ast consumer\n";
-//   }
-
-//   void Initialize(ASTContext &Context) override {
-//     Ctx = &Context;
-//   }
-
-//   // bool HandleTopLevelDecl(DeclGroupRef DG) override {
-//   //   for (auto D : DG) {
-//   //     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D)) {
-//   //       if (FD->getNameAsString() == "foo") {
-//   //         llvm::outs() << "Found foo() func decl\n";
-//   //         // IdentifierInfo& NewName = Ctx->Idents.get("new_foo");
-//   //         // DeclarationName NewDeclName(&NewName);
-//   //         // FD->setDeclName(NewDeclName);
-//   //       }
-//   //     }
-//   //   }
-//   //   return true;
-//   // }
-
-// private:
-//   AtomicsReplacerVisitor Visitor;
-//   ASTContext* Ctx;
-// };
-
-// //-----------------------------------------------------------------------------
-// // FrontendAction for AtomicsReplacer
-// //-----------------------------------------------------------------------------
-// class ReplacerClassPlugin : public PluginASTAction {
-// public:
-//   std::unique_ptr<ASTConsumer> CreateASTConsumer(
-//     CompilerInstance &Compiler,
-//     llvm::StringRef InFile
-//   ) override {
-//     llvm::outs() << "CreateASTConsumer(): file=" << InFile << "\n";
-//     MyRewriter.setSourceMgr(Compiler.getSourceManager(), Compiler.getLangOpts());
-//     return std::make_unique<AtomicsReplacerASTConsumer>(MyRewriter);
-//     // return std::unique_ptr<ASTConsumer>(
-//     //   std::make_unique<AtomicsReplacerASTConsumer>(&Compiler.getASTContext())
-//     // );
-//   }
-
-//   bool ParseArgs(
-//     const CompilerInstance &CI,
-//     const std::vector<std::string> &args
-//   ) override {
-//     return true;
-//   }
-
-//   bool BeginSourceFileAction(CompilerInstance &CI) override {
-//     llvm::outs() << "BeginSourceFileAction\n";
-//     return true;
-//   }
-
-//   void EndSourceFileAction() override {
-//     llvm::outs() << "EndSourceFileAction\n";
-//     // Output the rewritten source code
-//     MyRewriter.getEditBuffer(MyRewriter.getSourceMgr().getMainFileID()).write(llvm::outs());
-//   }
-
-//   bool shouldEraseOutputFiles() override {
-//     return false;
-//   }
-
-//   // PluginASTAction::ActionType getActionType() override {
-//   //   return ActionType::AddAfterMainAction;
-//   // }
-
-// private:
-//   Rewriter MyRewriter;
-// };
-
-//-----------------------------------------------------------------------------
-// Registration
-//-----------------------------------------------------------------------------
-// static FrontendPluginRegistry::Add<ReplacerClassPlugin> 
-//   X(/*Name=*/"atomics-replacer", /*Description=*/"Plugin which replaces std::atomic<T> classes with custom definitions");
-
-
 //-----------------------------------------------------------------------------
 // ASTFinder callback
 //-----------------------------------------------------------------------------
@@ -194,130 +56,30 @@ public:
   }
 
   void run(const clang::ast_matchers::MatchFinder::MatchResult &Result) override {
-    // Handle variable declarations of OtherAtomic type
-    // if (const auto *varDecl = Result.Nodes.getNodeAs<clang::VarDecl>("AtomicVarDecl")) {      
-    //   // Get the class name and its length from the record declaration
-    //   // const auto *RecordDecl = Result.Nodes.getNodeAs<clang::RecordDecl>("AtomicClass");
-    //   // if (!RecordDecl)
-    //   //   return;
-
-    //   clang::TypeLoc TypeLoc = varDecl->getTypeSourceInfo()->getTypeLoc();
-    //   std::string TypeSourceString = getSourceRangeAsString(TypeLoc.getSourceRange());
-
-    //   llvm::outs() << "Actual type as string matched: '"
-    //                << TypeSourceString << "' "
-    //                << varDecl->getType().getAsString() << " "
-    //                << "replace: " << ClassNameToReplace << "\n";
-
-    //   CodeRefactorRewriter.ReplaceText(TypeLoc.getBeginLoc(), TypeSourceString.length(), ClassNameToInsert);
-    // }
-
-    
-    llvm::outs() << "Matched something\n";
-    if (const auto *templateTypeLoc = Result.Nodes.getNodeAs<TypeLoc>("TemplateTypeLoc")) {
-      // QualifiedTypeLoc actualTypeLoc = templateTypeLoc->getAs<QualifiedTypeLoc>();
-      // if (actualTypeLoc) {
-      //   llvm::outs() << "Qualified template loc!" << getSourceRangeAsString(actualTypeLoc.getSourceRange()) << "\n";
-      // }
-
-      // switch (templateTypeLoc->getTypeLocClass()) {
-      //   case clang::TypeLoc::Qualified: {
-      //     QualifiedTypeLoc actualTypeLoc = templateTypeLoc->getAs<QualifiedTypeLoc>();
-      //     llvm::outs() << "Qualified template loc!" << getSourceRangeAsString(actualTypeLoc.getSourceRange()) << "\n";
-      //     break;
-      //   }
-      //   case clang::TypeLoc::TemplateSpecialization: {
-      //     llvm::outs() << "TemplateSpecialization\n";
-      //     break;
-      //   }
-      //   default: {
-      //     llvm::outs() << "None of two\n";
-      //   }
-      // }
-
-      const auto* TemplType = templateTypeLoc->getType()->getAs<TemplateSpecializationType>();
-      if (!TemplType) {
-        return;
-      }
-      
-      // if (const ClassTemplateSpecializationDecl *CTSD =
-      //     dyn_cast_or_null<ClassTemplateSpecializationDecl>(templType->getAsCXXRecordDecl())) {
-      //     // Get the fully qualified name, including namespaces
-      //     std::string FullyQualifiedName = GetFullyQualifiedName(CTSD);
-
-      //     // Print the fully qualified name
-      //     llvm::outs() << "Fully Qualified Name: " << FullyQualifiedName << "\n";
-      // }
-
-      llvm::outs() << "Template: '" << getSourceRangeAsString(templateTypeLoc->getSourceRange()) << "'\n";
-      llvm::outs() << "Template args: " << GetTemplateArguments(TemplType) << "\n";
-      
-      //CodeRefactorRewriter.ReplaceText(templateTypeLoc->getSourceRange(), ClassNameToInsert + templateArgs);
-    }
-
-    if (const auto* fqTemplateTypeLoc = Result.Nodes.getNodeAs<ElaboratedTypeLoc>("TemplateFQTypeLoc")) {      
-      const auto* TemplType = fqTemplateTypeLoc->getType()->getAs<TemplateSpecializationType>();
+    if (const auto* ETL = Result.Nodes.getNodeAs<ElaboratedTypeLoc>("ElaboratedTypeLoc")) {      
+      const auto* TemplType = ETL->getType()->getAs<TemplateSpecializationType>();
       if (!TemplType) {
         return;
       }
 
-      std::string TemplateArgs = GetTemplateArguments(TemplType);
-
-      llvm::outs() << "FQ Template: '" << getSourceRangeAsString(fqTemplateTypeLoc->getSourceRange()) << "'\n";
-      llvm::outs() << "FQ Template args: " << TemplateArgs << "\n";
-      
-      CodeRefactorRewriter.ReplaceText(fqTemplateTypeLoc->getSourceRange(), ClassNameToInsert + TemplateArgs);
+      CodeRefactorRewriter.ReplaceText(ETL->getSourceRange(), ClassNameToInsert + GetArgumentsFromTemplateType(TemplType));
     }
 
-    if (const auto* fqTemplateTypeParamLoc = Result.Nodes.getNodeAs<QualifiedTypeLoc>("TemplateFQTypeParamLoc")) {
-      const auto* TemplType = fqTemplateTypeParamLoc->getType()->getAs<TemplateSpecializationType>();
+    if (const auto* QTL = Result.Nodes.getNodeAs<QualifiedTypeLoc>("QualifiedTypeLoc")) {
+      const auto* TemplType = QTL->getType()->getAs<TemplateSpecializationType>();
       if (!TemplType) {
-        llvm::outs() << "Param Template: CANNOT CAST!\n";
         return;
       }
 
-
-      std::string TemplateArgs = GetTemplateArguments(TemplType);
-
-      llvm::outs() << "Param Template: '" << getSourceRangeAsString(fqTemplateTypeParamLoc->getSourceRange()) << "'\n";
-      llvm::outs() << "Param Template args: " << TemplateArgs << "\n";
-
-      CodeRefactorRewriter.ReplaceText(fqTemplateTypeParamLoc->getSourceRange(), ClassNameToInsert + TemplateArgs);
+      CodeRefactorRewriter.ReplaceText(QTL->getSourceRange(), ClassNameToInsert + GetArgumentsFromTemplateType(TemplType));
     }
-
-    // const MemberExpr *MemberAccess =
-    //     Result.Nodes.getNodeAs<clang::MemberExpr>("MemberAccess");
-  
-    // if (MemberAccess) {
-    //   SourceRange CallExprSrcRange = MemberAccess->getMemberLoc();
-    //   CodeRefactorRewriter.ReplaceText(CallExprSrcRange, NewName);
-    // }
-  
-    // const NamedDecl *MemberDecl =
-    //     Result.Nodes.getNodeAs<clang::NamedDecl>("MemberDecl");
-  
-    // if (MemberDecl) {
-    //   SourceRange MemberDeclSrcRange = MemberDecl->getLocation();
-    //   CodeRefactorRewriter.ReplaceText(
-    //       CharSourceRange::getTokenRange(MemberDeclSrcRange), NewName);
-    // }
   }
 
-  std::string GetTemplateArguments(const TemplateSpecializationType *TST) {
+  std::string GetArgumentsFromTemplateType(const TemplateSpecializationType *TST) {
     std::string args;
     llvm::raw_string_ostream os(args);
     printTemplateArgumentList(os, TST->template_arguments(), Context.getPrintingPolicy());
     return args;
-  }
-
-  std::string GetFullyQualifiedName(const Decl *D) {
-    PrintingPolicy Policy(Context.getLangOpts());
-    Policy.SuppressScope = false; // Ensure namespace qualifiers are included
-
-    std::string QualName;
-    llvm::raw_string_ostream OS(QualName);
-    D->print(OS, Policy);
-    return QualName;
   }
 
 private:
@@ -326,6 +88,7 @@ private:
   std::string ClassNameToReplace;
   std::string ClassNameToInsert;
 
+  // Util function for debugging purposes
   std::string getSourceRangeAsString(const SourceRange& SR) const {
     auto& sm = CodeRefactorRewriter.getSourceMgr();
     auto& langOpts = CodeRefactorRewriter.getLangOpts();
@@ -367,35 +130,6 @@ public:
   ): CodeRefactorHandler(Context, R, ClassNameToReplace, ClassNameToInsert),
      ClassNameToReplace(ClassNameToReplace),
      ClassNameToInsert(ClassNameToInsert) {
-    // const auto MatcherForAtomicVarDecl = varDecl(
-    //   hasType(
-    //     recordDecl(hasName(ClassNameToReplace)) // .bind("AtomicClass")
-    //   ),
-    //   unless(hasType(autoType()))
-    // ).bind("AtomicVarDecl");
-
-    // Finder.addMatcher(MatcherForAtomicVarDecl, &CodeRefactorHandler);
-    
-    // specifiesNamespace
-
-    /*
-    
-    match elaboratedTypeLoc(loc(templateSpecializationType(hasDeclaration(classTemplateSpecializationDecl(hasName("OtherAtomic"))))))
-    
-    */
-
-    const auto MatcherForTemplateTypes = typeLoc(
-      loc(
-        templateSpecializationType(
-          hasDeclaration(
-            classTemplateSpecializationDecl(
-              hasName(ClassNameToReplace)
-            )
-          )
-        )
-      )
-    );
-
     // Does not support matching the parameters of the functions
     const auto MatcherForFQTemplateTypes = elaboratedTypeLoc(
       hasNamedTypeLoc(
@@ -411,32 +145,16 @@ public:
       )
     );
 
+    // Uses previous matcher inside, but returns a wrapping QualifiedTypeLoc node
+    // which is used in the function parameters
     const auto MatcherForFQTemplateParams = qualifiedTypeLoc(
       hasUnqualifiedLoc(
         MatcherForFQTemplateTypes
       )
     );
 
-    Finder.addMatcher(MatcherForTemplateTypes.bind("TemplateTypeLoc"), &CodeRefactorHandler);
-    Finder.addMatcher(MatcherForFQTemplateTypes.bind("TemplateFQTypeLoc"), &CodeRefactorHandler);
-    Finder.addMatcher(MatcherForFQTemplateParams.bind("TemplateFQTypeParamLoc"), &CodeRefactorHandler);
-    
-    // Match class type references in declarations
-    // const auto MatcherForTypeReferences = typeLoc(
-    //   hasType(hasDeclaration(recordDecl(hasName(ClassNameToReplace))))
-    // ).bind("AtomicTypeLoc");
-
-    // const auto MatcherForMemberAccess = cxxMemberCallExpr(
-    //   callee(memberExpr(member(hasName(OldName))).bind("MemberAccess")),
-    //   thisPointerType(cxxRecordDecl(isSameOrDerivedFrom(hasName(ClassName)))));
-
-    // Finder.addMatcher(MatcherForMemberAccess, &CodeRefactorHandler);
-
-    // const auto MatcherForMemberDecl = cxxRecordDecl(
-    //     allOf(isSameOrDerivedFrom(hasName(ClassName)),
-    //           hasMethod(decl(namedDecl(hasName(OldName))).bind("MemberDecl"))));
-
-    // Finder.addMatcher(MatcherForMemberDecl, &CodeRefactorHandler);
+    Finder.addMatcher(MatcherForFQTemplateTypes.bind("ElaboratedTypeLoc"), &CodeRefactorHandler);
+    Finder.addMatcher(MatcherForFQTemplateParams.bind("QualifiedTypeLoc"), &CodeRefactorHandler);
   }
 
   void HandleTranslationUnit(clang::ASTContext &Ctx) override {

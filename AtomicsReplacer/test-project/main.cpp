@@ -3,6 +3,14 @@
 #include "other_atomic.h"
 #include "my_atomic.h"
 
+struct DataStructure {
+    custom::OtherAtomic<int> other;
+
+    int getVal() {
+        return other.get();
+    }
+};
+
 int main() {
     auto a1 = custom::OtherAtomic<char>{};
     custom::OtherAtomic<char> a2;
