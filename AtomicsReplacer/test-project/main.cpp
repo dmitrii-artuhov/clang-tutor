@@ -15,4 +15,5 @@ void fun(const custom::OtherAtomic<float>& other) {
     OtherAtomic  <long> a3{};
     // OtherAtomic<int> a4 = OtherAtomic<int>{};
     // OtherAtomic<int> a5 = OtherAtomic<int>();
+    OtherAtomic<long>* ptr;
 }

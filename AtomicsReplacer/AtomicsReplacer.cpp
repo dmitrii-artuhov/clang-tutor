@@ -379,7 +379,19 @@ public:
       )
     ).bind("TemplateTypeLoc");
 
-    const auto MatcherForFQTemplateTypes = elaboratedTypeLoc(hasNamedTypeLoc(loc( templateSpecializationType(  hasDeclaration(classTemplateSpecializationDecl(hasName("custom::OtherAtomic")))   ) ))).bind("TemplateFQTypeLoc");
+    const auto MatcherForFQTemplateTypes = elaboratedTypeLoc(
+      hasNamedTypeLoc(
+        loc(
+          templateSpecializationType(
+            hasDeclaration(
+              classTemplateSpecializationDecl(
+                hasName("custom::OtherAtomic")
+              )
+            )
+          )
+        )
+      )
+    ).bind("TemplateFQTypeLoc");
 
     Finder.addMatcher(MatcherForTemplateTypes, &CodeRefactorHandler);
     Finder.addMatcher(MatcherForFQTemplateTypes, &CodeRefactorHandler);
