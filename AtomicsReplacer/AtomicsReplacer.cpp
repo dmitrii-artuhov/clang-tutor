@@ -49,10 +49,36 @@ public:
         ClassNameToInsert(ClassNameToInsert) {}
   
   void onEndOfTranslationUnit() override {
+    const SourceManager& SM = CodeRefactorRewriter.getSourceMgr();    
+    FileID MainFileID = SM.getMainFileID();
+    const RewriteBuffer& Buffer = CodeRefactorRewriter.getEditBuffer(MainFileID);
+
     // Output to stdout
-    CodeRefactorRewriter
-      .getEditBuffer(CodeRefactorRewriter.getSourceMgr().getMainFileID())
-      .write(llvm::outs());
+    Buffer.write(llvm::outs());
+    llvm::outs() << "\n";
+
+    // Output to file
+    const FileEntry *Entry = SM.getFileEntryForID(MainFileID);
+    StringRef OriginalFilename = Entry->tryGetRealPathName();
+
+    size_t index = OriginalFilename.rfind(".");
+    assert(index != std::string::npos);
+
+    llvm::outs() << "Original filename: " << OriginalFilename << "\n";
+    std::string OutputFilename = std::string(OriginalFilename.begin(), OriginalFilename.begin() + index) + "_tmp.cpp";
+
+    std::error_code EC;
+    llvm::raw_fd_ostream OS(OutputFilename, EC, llvm::sys::fs::OF_None);
+    
+    if (EC) {
+      llvm::errs() << "Error: Could not open output file: " << EC.message() << "\n";
+      return;
+    }
+
+    llvm::outs() << "Writing to file: " << OutputFilename << "\n";
+    //OS << std::string(Buffer->begin(), Buffer->end());
+    Buffer.write(OS);
+    OS.close();
   }
 
   void run(const clang::ast_matchers::MatchFinder::MatchResult &Result) override {
