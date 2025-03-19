@@ -50,3 +50,31 @@ add_library(AtomicsReplacer SHARED AtomicsReplacer.cpp)
 # behaviour on Linux)
 target_link_libraries(AtomicsReplacer
   "$<$<PLATFORM_ID:Darwin>:-undefined dynamic_lookup>")
+
+
+#===============================================================================
+# 4. SETUP TOOL BUILD
+#===============================================================================
+set(CLANG_TOOL "AtomicsReplacerTool")
+set(CLANG_TOOL_SOURCES
+ "${CMAKE_CURRENT_SOURCE_DIR}/AtomicsReplacerTool.cpp"
+ "${CMAKE_CURRENT_SOURCE_DIR}/AtomicsReplacer.cpp"
+)
+
+add_executable(
+  ${CLANG_TOOL}
+  ${CLANG_TOOL_SOURCES}
+)
+
+# Configure include directories for 'tool'
+target_include_directories(
+  ${CLANG_TOOL}
+  PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}"
+)
+
+# Link in the required libraries 
+target_link_libraries(
+  ${CLANG_TOOL}
+  clangTooling
+)
