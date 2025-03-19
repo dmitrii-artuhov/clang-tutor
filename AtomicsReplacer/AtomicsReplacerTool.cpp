@@ -51,13 +51,6 @@ public:
     return true;
   }
 
-  // Output the edit buffer for this translation unit
-  // void EndSourceFileAction() override {
-  //   RewriterForCodeRefactor
-  //     .getEditBuffer(RewriterForCodeRefactor.getSourceMgr().getMainFileID())
-  //     .write(llvm::outs());
-  // }
-
   std::unique_ptr<ASTConsumer> CreateASTConsumer(
     CompilerInstance &CI,
     StringRef file
@@ -95,5 +88,5 @@ int main(int Argc, const char **Argv) {
   );
 
   // runAndSave
-  return Tool.runAndSave(clang::tooling::newFrontendActionFactory<CodeRefactorPluginAction>().get());
+  return Tool.run(clang::tooling::newFrontendActionFactory<CodeRefactorPluginAction>().get());
 }
